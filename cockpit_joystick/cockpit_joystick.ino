@@ -1,43 +1,12 @@
-/*
-  Blink
-
-  Turns an LED on for one second, then off for one second, repeatedly.
-
-  Most Arduinos have an on-board LED you can control. On the UNO, MEGA and ZERO
-  it is attached to digital pin 13, on MKR1000 on pin 6. LED_BUILTIN is set to
-  the correct LED pin independent of which board is used.
-  If you want to know what pin the on-board LED is connected to on your Arduino
-  model, check the Technical Specs of your board at:
-  https://docs.arduino.cc/hardware/
-
-  modified 8 May 2014
-  by Scott Fitzgerald
-  modified 2 Sep 2016
-  by Arturo Guadalupi
-  modified 8 Sep 2016
-  by Colby Newman
-
-  This example code is in the public domain.
-
-  https://docs.arduino.cc/built-in-examples/basics/Blink/
-*/
+#include <Joystick.h>
 #include <Wire.h>
 
-long unsigned int myDelay = 250;
-int timeoutErrorCounter = 0;
-int otherErrorCounter = 0;
-int rxSizeError = 0;
+
+// Create the Joystick
+Joystick_ Joystick;
+
 uint8_t buf[10];
 
-
-// the setup function runs once when you press reset or power the board
-void setup() {
-  // initialize digital pin LED_BUILTIN as an output.
-  pinMode(LED_BUILTIN, OUTPUT);
-  Serial1.begin(9600);
-  Wire.begin();
-  Wire.setWireTimeout(3000, true);
-}
 
 void sendData(int address, int numBytes, uint8_t* buf)
 {
@@ -48,32 +17,14 @@ void sendData(int address, int numBytes, uint8_t* buf)
     Wire.write(buf[i]);
   }
   byte error = Wire.endTransmission();
-  if (error)
-  {
-    if (error == 5)
-    {
-      timeoutErrorCounter++;
-    }
-    else
-    {
-      otherErrorCounter++;
-    }
-  }
 }
 
 void requestData(int address, int numBytes, uint8_t* buf)
 {
   int received = Wire.requestFrom(address, numBytes);
-  if (received != numBytes)
+  for (int i = 0; i < numBytes; i++)
   {
-    rxSizeError++;
-  }
-  else
-  {
-    for (int i = 0; i < numBytes; i++)
-    {
-      buf[i] = Wire.read();
-    }
+    buf[i] = Wire.read();
   }
 }
 
@@ -116,43 +67,120 @@ void runTest()
     Serial1.print((float)(endTime - startTime) / (float)numOfCycles);
     Serial1.println(" us per cycle");
 
-    if (timeoutErrorCounter + otherErrorCounter + rxSizeError > 0)
-    {
-      Serial1.print("We found this many errors: ");
-      Serial1.println(timeoutErrorCounter + otherErrorCounter + rxSizeError);
+    // if (timeoutErrorCounter + otherErrorCounter + rxSizeError > 0)
+    // {
+    //   Serial1.print("We found this many errors: ");
+    //   Serial1.println(timeoutErrorCounter + otherErrorCounter + rxSizeError);
 
-      Serial1.print("- Timeout errors: ");
-      Serial1.println(timeoutErrorCounter);
-      Serial1.print("- Other transmission errors: ");
-      Serial1.println(otherErrorCounter);
-      Serial1.print("- Request data size errors: ");
-      Serial1.println(rxSizeError);
-    }
-    else
-    {
-      Serial1.println("There were no errors!");
-    }
+    //   Serial1.print("- Timeout errors: ");
+    //   Serial1.println(timeoutErrorCounter);
+    //   Serial1.print("- Other transmission errors: ");
+    //   Serial1.println(otherErrorCounter);
+    //   Serial1.print("- Request data size errors: ");
+    //   Serial1.println(rxSizeError);
+    // }
+    // else
+    // {
+    //   Serial1.println("There were no errors!");
+    // }
   }
 }
 
-// the loop function runs over and over again forever
+
+int buttonPrevState = 0; 
+uint16_t axisPrevState = 0;
+
+void setup() {
+
+	// Initialize Joystick Library
+	Joystick.begin();
+
+  // initialize digital pin LED_BUILTIN as an output.
+  pinMode(LED_BUILTIN, OUTPUT);
+
+  Serial1.begin(9600);
+  
+  Wire.begin();
+  Wire.setWireTimeout(3000, true);
+
+  // Initial request to set the previous state variables
+  requestCycle(12, 7, buf, 0);
+
+  if (!buf[4]) buttonPrevState = 1;
+  axisPrevState = (buf[2] << 8) | (buf[3]);
+
+}
+
+int buttonState = 0;
+uint16_t axisState = 0;
+
 void loop() 
 {
-  rxSizeError = 0;
   requestCycle(12, 7, buf, 0);
-  if (rxSizeError > 0)
-  {
 
+  // for (int i = 0; i < 7; i++)
+  // {
+  //   Serial1.print(buf[i]);
+  //   Serial1.print(" - ");
+  // }
+  // Serial1.println("");
+
+  buttonState = 0;
+  if (!buf[4]) buttonState = 1;
+  axisState = (buf[2] << 8) | (buf[3]);
+
+  Serial1.print("Button press: ");
+
+  if (buttonState)
+  {
+    Serial1.print("1");
   }
   else
   {
-    for (int i = 0; i < 7; i++)
-    {
-      Serial1.print(buf[i]);
-      Serial1.print(" - ");
-    }
-    Serial1.println("");
+    Serial1.print("0");
   }
-  delay(14);
 
+  Serial1.print(", ADC: ");
+  Serial1.println(axisState);
+
+
+
+  if (buttonState != buttonPrevState) 
+  {
+    Joystick.setButton(0, buttonState);
+    buttonPrevState = buttonState;
+  }
+
+  // axisState = (buf[1] << 8) | (buf[2]);
+
+  // if (axisState != axisPrevState) 
+  // {
+  //   // Joystick.setButton(0, axisState);
+  //   axisPrevState = axisState;
+  // }
+
+  delay(13);
 }
+
+
+
+
+// // the loop function runs over and over again forever
+// void loop() 
+// {
+//   rxSizeError = 0;
+//   if (rxSizeError > 0)
+//   {
+
+//   }
+//   else
+//   {
+//     for (int i = 0; i < 7; i++)
+//     {
+//       Serial1.print(buf[i]);
+//       Serial1.print(" - ");
+//     }
+//     Serial1.println("");
+//   }
+
+// }
