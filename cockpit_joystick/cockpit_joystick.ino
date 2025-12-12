@@ -6,6 +6,7 @@
 Joystick_ Joystick;
 
 uint8_t buf[10];
+uint8_t i2cAddr = 0xE;
 
 
 void sendData(int address, int numBytes, uint8_t* buf)
@@ -35,11 +36,24 @@ void setRegisterAddress(int address, uint8_t regAddress)
   sendData(address, 1, buf);
 }
 
+void sendProcessCommand(int address)
+{
+  setRegisterAddress(address, 0);
+  delayMicroseconds(250);
+
+  uint8_t buf[1];
+  buf[0] = 0x10;  // Command to do general processing
+  sendData(address, 1, buf);
+  delayMicroseconds(250);
+}
+
 void requestCycle(int address, int numBytes, uint8_t* buf, uint8_t iteration)
 {
   setRegisterAddress(address, 0);
   delayMicroseconds(250);
   requestData(address, numBytes,  buf);
+  delayMicroseconds(250);
+  sendProcessCommand(address);
 }
 
 void runTest()
@@ -56,7 +70,7 @@ void runTest()
     startTime = micros();
     for (int i = 0; i < numOfCycles; i++)
     {
-      requestCycle(12, 7, buf, i);
+      requestCycle(i2cAddr, 7, buf, i);
     }
     endTime = micros();
 
@@ -104,7 +118,7 @@ void setup() {
   Wire.setWireTimeout(3000, true);
 
   // Initial request to set the previous state variables
-  requestCycle(12, 7, buf, 0);
+  requestCycle(i2cAddr, 7, buf, 0);
 
   if (!buf[4]) buttonPrevState = 1;
   axisPrevState = (buf[2] << 8) | (buf[3]);
@@ -113,53 +127,63 @@ void setup() {
 
 int buttonState = 0;
 uint16_t axisState = 0;
+bool testMode = false;
 
 void loop() 
 {
-  requestCycle(12, 7, buf, 0);
 
-  // for (int i = 0; i < 7; i++)
-  // {
-  //   Serial1.print(buf[i]);
-  //   Serial1.print(" - ");
-  // }
-  // Serial1.println("");
-
-  buttonState = 0;
-  if (!buf[4]) buttonState = 1;
-  axisState = (buf[2] << 8) | (buf[3]);
-
-  Serial1.print("Button press: ");
-
-  if (buttonState)
+  if (testMode)
   {
-    Serial1.print("1");
+    requestCycle(i2cAddr, 11, buf, 0);
+  
+    for (int i = 0; i < 11; i++)
+    {
+      Serial1.print(buf[i]);
+      Serial1.print(" - ");
+    }
+    Serial1.println("");
+    delay(500);
   }
   else
   {
-    Serial1.print("0");
+    requestCycle(i2cAddr, 7, buf, 0);
+
+    buttonState = 0;
+    if (!buf[4]) buttonState = 1;
+    axisState = (buf[2] << 8) | (buf[3]);
+
+    Serial1.print("Button press: ");
+
+    if (buttonState)
+    {
+      Serial1.print("1");
+    }
+    else
+    {
+      Serial1.print("0");
+    }
+
+    Serial1.print(", ADC: ");
+    Serial1.println(axisState);
+
+    if (buttonState != buttonPrevState) 
+    {
+      Joystick.setButton(0, buttonState);
+      buttonPrevState = buttonState;
+    }
+
+    // axisState = (buf[1] << 8) | (buf[2]);
+
+    // if (axisState != axisPrevState) 
+    // {
+    //   // Joystick.setButton(0, axisState);
+    //   axisPrevState = axisState;
+    // }
+
+    delay(13);
   }
 
-  Serial1.print(", ADC: ");
-  Serial1.println(axisState);
 
-
-
-  if (buttonState != buttonPrevState) 
-  {
-    Joystick.setButton(0, buttonState);
-    buttonPrevState = buttonState;
-  }
-
-  // axisState = (buf[1] << 8) | (buf[2]);
-
-  // if (axisState != axisPrevState) 
-  // {
-  //   // Joystick.setButton(0, axisState);
-  //   axisPrevState = axisState;
-  // }
-
-  delay(13);
 }
 
 
