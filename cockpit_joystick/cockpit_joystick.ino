@@ -6,10 +6,9 @@
 Joystick_ Joystick;
 
 uint8_t buf[10];
-uint8_t i2cAddr = 0xE;
 
 
-void sendData(int address, int numBytes, uint8_t* buf)
+bool sendData(int address, int numBytes, uint8_t* buf)
 {
   Wire.beginTransmission(address);
   Wire.write(0); // Register address
@@ -18,6 +17,8 @@ void sendData(int address, int numBytes, uint8_t* buf)
     Wire.write(buf[i]);
   }
   byte error = Wire.endTransmission();
+  
+  return (error == 0);
 }
 
 void requestData(int address, int numBytes, uint8_t* buf)
@@ -29,11 +30,11 @@ void requestData(int address, int numBytes, uint8_t* buf)
   }
 }
 
-void setRegisterAddress(int address, uint8_t regAddress)
+bool setRegisterAddress(int address, uint8_t regAddress)
 {
   uint8_t buf[1];
   buf[0] = regAddress;
-  sendData(address, 1, buf);
+  return sendData(address, 1, buf);
 }
 
 void sendProcessCommand(int address)
@@ -47,13 +48,85 @@ void sendProcessCommand(int address)
   delayMicroseconds(250);
 }
 
-void requestCycle(int address, int numBytes, uint8_t* buf, uint8_t iteration)
+bool requestCycle(int address, int numBytes, uint8_t* buf, uint8_t iteration)
 {
-  setRegisterAddress(address, 0);
+  if (!setRegisterAddress(address, 0))
+  {
+    // If error, we do not attempt to do more in the cycle for this device
+    return false;
+  }
   delayMicroseconds(250);
   requestData(address, numBytes,  buf);
   delayMicroseconds(250);
   sendProcessCommand(address);
+  return true;
+}
+
+
+uint8_t i2cAddr[4] = {0xC, 0xD, 0xE, 0xF};
+int buttonPrevState[4] = {0, 0, 0, 0}; 
+uint16_t axisPrevState[4] = {0, 0, 0, 0};
+int buttonState = 0;
+uint16_t axisState = 0;
+bool testMode = false;
+
+void reportDeviceExists(uint8_t i)
+{
+  if (requestCycle(i2cAddr[i], 7, buf, 0))
+  {
+    Serial1.print("Device: ");
+    Serial1.print(i);
+    Serial1.println(" responded.");
+  }
+  else
+  {
+    Serial1.print("Device: ");
+    Serial1.print(i);
+    Serial1.println(" did not respond.");
+  }
+}
+
+void initiatePreviousData(uint8_t i)
+{
+  // Initial request to set the previous state variables
+  if (requestCycle(i2cAddr[i], 7, buf, 0))
+  {
+    if (!buf[4]) buttonPrevState[i] = 1;
+    axisPrevState[i] = (buf[2] << 8) | (buf[3]);
+  }
+}
+
+void getDeviceData(int i)
+{
+  if (requestCycle(i2cAddr[i], 7, buf, 0))
+  {
+    buttonState = 0;
+    if (!buf[4]) buttonState = 1;
+    axisState = (buf[2] << 8) | (buf[3]);
+
+    Serial1.print("#");
+    Serial1.print(i);
+    Serial1.print(", button press: ");
+
+    if (buttonState)
+    {
+      Serial1.print("1");
+    }
+    else
+    {
+      Serial1.print("0");
+    }
+
+    Serial1.print(", ADC: ");
+    Serial1.print(axisState);
+    Serial1.print(" - ");
+
+    if (buttonState != buttonPrevState[i]) 
+    {
+      Joystick.setButton(0, buttonState);
+      buttonPrevState[i] = buttonState;
+    }
+  }
 }
 
 void runTest()
@@ -70,7 +143,7 @@ void runTest()
     startTime = micros();
     for (int i = 0; i < numOfCycles; i++)
     {
-      requestCycle(i2cAddr, 7, buf, i);
+      requestCycle(i2cAddr[i], 7, buf, i);
     }
     endTime = micros();
 
@@ -81,28 +154,9 @@ void runTest()
     Serial1.print((float)(endTime - startTime) / (float)numOfCycles);
     Serial1.println(" us per cycle");
 
-    // if (timeoutErrorCounter + otherErrorCounter + rxSizeError > 0)
-    // {
-    //   Serial1.print("We found this many errors: ");
-    //   Serial1.println(timeoutErrorCounter + otherErrorCounter + rxSizeError);
-
-    //   Serial1.print("- Timeout errors: ");
-    //   Serial1.println(timeoutErrorCounter);
-    //   Serial1.print("- Other transmission errors: ");
-    //   Serial1.println(otherErrorCounter);
-    //   Serial1.print("- Request data size errors: ");
-    //   Serial1.println(rxSizeError);
-    // }
-    // else
-    // {
-    //   Serial1.println("There were no errors!");
-    // }
   }
 }
 
-
-int buttonPrevState = 0; 
-uint16_t axisPrevState = 0;
 
 void setup() {
 
@@ -117,60 +171,43 @@ void setup() {
   Wire.begin();
   Wire.setWireTimeout(3000, true);
 
-  // Initial request to set the previous state variables
-  requestCycle(i2cAddr, 7, buf, 0);
-
-  if (!buf[4]) buttonPrevState = 1;
-  axisPrevState = (buf[2] << 8) | (buf[3]);
-
+  for (uint8_t i = 0; i < 4; i++)
+  {
+    reportDeviceExists(i);
+    initiatePreviousData(i);
+  }
 }
 
-int buttonState = 0;
-uint16_t axisState = 0;
-bool testMode = false;
+
+
 
 void loop() 
 {
 
   if (testMode)
   {
-    requestCycle(i2cAddr, 11, buf, 0);
-  
-    for (int i = 0; i < 11; i++)
+    for (uint8_t i = 0; i < 4; i++)
     {
-      Serial1.print(buf[i]);
-      Serial1.print(" - ");
+      if (requestCycle(i2cAddr[i], 11, buf, 0))
+      {
+        for (int i = 0; i < 11; i++)
+        {
+          Serial1.print(buf[i]);
+          Serial1.print(" - ");
+        }
+      }
     }
     Serial1.println("");
     delay(500);
   }
   else
   {
-    requestCycle(i2cAddr, 7, buf, 0);
-
-    buttonState = 0;
-    if (!buf[4]) buttonState = 1;
-    axisState = (buf[2] << 8) | (buf[3]);
-
-    Serial1.print("Button press: ");
-
-    if (buttonState)
+    for (uint8_t i = 0; i < 4; i++)
     {
-      Serial1.print("1");
+      getDeviceData(i);
     }
-    else
-    {
-      Serial1.print("0");
-    }
+    Serial1.println("");
 
-    Serial1.print(", ADC: ");
-    Serial1.println(axisState);
-
-    if (buttonState != buttonPrevState) 
-    {
-      Joystick.setButton(0, buttonState);
-      buttonPrevState = buttonState;
-    }
 
     // axisState = (buf[1] << 8) | (buf[2]);
 
