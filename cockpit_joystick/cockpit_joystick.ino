@@ -67,7 +67,7 @@ uint8_t i2cAddr[4] = {0xC, 0xD, 0xE, 0xF};
 int buttonPrevState[4] = {0, 0, 0, 0}; 
 uint16_t axisPrevState[4] = {0, 0, 0, 0};
 int buttonState = 0;
-uint16_t axisState = 0;
+int16_t axisState = 0;
 bool testMode = false;
 
 void reportDeviceExists(uint8_t i)
@@ -101,8 +101,8 @@ void getDeviceData(int i)
   if (requestCycle(i2cAddr[i], 7, buf, 0))
   {
     buttonState = 0;
-    if (!buf[4]) buttonState = 1;
-    axisState = (buf[2] << 8) | (buf[3]);
+    if (!buf[3]) buttonState = 1;
+    axisState = (buf[1] << 8) | (buf[2]);
 
     Serial1.print("#");
     Serial1.print(i);
@@ -119,6 +119,9 @@ void getDeviceData(int i)
 
     Serial1.print(", ADC: ");
     Serial1.print(axisState);
+
+
+
     Serial1.print(" - ");
 
     if (buttonState != buttonPrevState[i]) 
@@ -192,8 +195,8 @@ void loop()
       {
         for (int i = 0; i < 11; i++)
         {
-          Serial1.print(buf[i]);
-          Serial1.print(" - ");
+          Serial1.print(buf[i], HEX);
+          Serial1.print(" - 0x");
         }
       }
     }
