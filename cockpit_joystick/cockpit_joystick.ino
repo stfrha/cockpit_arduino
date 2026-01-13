@@ -3,10 +3,103 @@
 
 
 // Create the Joystick
-Joystick_ Joystick;
+Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID, JOYSTICK_TYPE_JOYSTICK, 32, 0,
+  true, true,   // Device  0 use x-axis and y-axis
+  true, true,   // Device  1 use z-axis and Rx-axis
+  true, true,   // Device  2 use Ry-axis and Rz-axis
+  false, false, false, false, false);
 
 uint8_t buf[10];
 
+
+// -----------------------------------------------------------------------------------------------
+// Time manageing functions
+
+unsigned long startTime = 0;
+unsigned long cyclePeriod = 16666; // 60 Hz period
+
+// Benchmarking
+unsigned long accumulatedDuration = 0;
+unsigned long maxDuration = 0;
+unsigned long minDuration = 0;
+unsigned long benchmarkCount = 0;
+
+void sampleTime(void)
+{
+  startTime = micros();
+}
+
+unsigned long findCycleDuration(void)
+{
+  unsigned long now = micros();
+
+  if (now < startTime)
+  {
+    // We have a wrap, unwrap it
+    return 4294967295 - startTime + now;
+  }
+
+  return now - startTime;
+}
+
+unsigned long getDelay(void)
+{
+  unsigned long duration = findCycleDuration();
+
+  benchmarkHandleDuration(duration);
+
+  if (duration > cyclePeriod)
+  {
+    return 0;
+  }
+
+  return cyclePeriod - duration;
+}
+
+unsigned doPeriodDelay(void)
+{
+  delayMicroseconds(getDelay());
+}
+
+void resetBenchmarking(void)
+{
+  accumulatedDuration = 0;
+  maxDuration = 0;
+  minDuration = 4294967295;
+  benchmarkCount = 0;
+}
+
+// Returns true is benchmark report is to be produced
+bool benchmarkHandleDuration(unsigned long duration)
+{
+  accumulatedDuration += duration;
+
+  if (duration > maxDuration)
+  {
+    maxDuration = duration;
+  }
+
+  if (duration < minDuration)
+  {
+    minDuration = duration;
+  }
+
+  benchmarkCount++;
+
+  if (benchmarkCount > 500)
+  {
+    // Report benchmark and then reset
+    Serial1.print("Benchmark report! avg: ");
+    Serial1.print(accumulatedDuration / benchmarkCount);
+    Serial1.print(", min: ");
+    Serial1.print(minDuration);
+    Serial1.print(", max: ");
+    Serial1.println(maxDuration);
+
+    resetBenchmarking();
+  }
+
+}
 
 // -----------------------------------------------------------------------------------------------
 // Bit manipulation functions
@@ -168,36 +261,74 @@ void evaluateJoystickButtonChange(uint8_t device)
     if (bs != readBit(prevButtonState[device], i))
     {
       // Button state changed
-      Serial1.println("Button state changed");
+      // Serial1.println("Button state changed");
 
-      Serial1.print("Device: ");
-      Serial1.print(device);
-      Serial1.println(" responded with data:");
-      Serial1.println(buttonState[device], HEX);
-      Serial1.println("The same with as integer:");
-      Serial1.println(buttonState[device]);
+      // Serial1.print("Device: ");
+      // Serial1.print(device);
+      // Serial1.println(" responded with data:");
+      // Serial1.println(buttonState[device], HEX);
+      // Serial1.println("The same with as integer:");
+      // Serial1.println(buttonState[device]);
 
       Joystick.setButton(i, bs);
       //Joystick.setButton(i + 32 * device, bs);
 
-      Serial1.print("Before change, the prevButtonState is: ");
-      Serial1.println(prevButtonState[device], HEX);
+      // Serial1.print("Before change, the prevButtonState is: ");
+      // Serial1.println(prevButtonState[device], HEX);
 
       prevButtonState[device] = setBit(prevButtonState[device], i, bs);
 
-      Serial1.print("After change, the prevButtonState is: ");
-      Serial1.println(prevButtonState[device], HEX);
+      // Serial1.print("After change, the prevButtonState is: ");
+      // Serial1.println(prevButtonState[device], HEX);
+    }
+  }
+}
+
+void setAxis(uint8_t device, uint8_t axisIndex, int16_t value)
+{
+  if (device == 0)
+  {
+    if (axisIndex == 0)
+    {
+      Joystick.setXAxis(value);
+    }
+    else if (axisIndex == 1)
+    {
+      Joystick.setYAxis(value);
+    }
+  }
+  else if (device == 1)
+  {
+    if (axisIndex == 0)
+    {
+      Joystick.setZAxis(value);
+    }
+    else if (axisIndex == 1)
+    {
+      Joystick.setRxAxis(value);
+    }
+  }
+  else if (device == 2)
+  {
+    if (axisIndex == 0)
+    {
+      Joystick.setRyAxis(value);
+    }
+    else if (axisIndex == 1)
+    {
+      Joystick.setRzAxis(value);
     }
   }
 }
 
 void evaluateJoystickAxisChange(uint8_t device)
 {
-  for (int i = 0; i < 2; i++)
+  for (uint8_t i = 0; i < 2; i++)
   {
     if ((abs(axisState[device][i] - prevAxisState[device][i])) > 5)
     {
       // TODO: Handle axis changed joystick command
+      setAxis(device, i,  axisState[device][i]);
 
       prevAxisState[device][i] = axisState[device][i];
     }
@@ -266,7 +397,15 @@ void runTest()
 }
 
 
-void setup() {
+void setup() 
+{
+
+  Joystick.setXAxisRange(0, 1023);
+  Joystick.setYAxisRange(0, 1023);
+  Joystick.setZAxisRange(0, 1023);
+  Joystick.setRxAxisRange(0, 1023);
+  Joystick.setRyAxisRange(0, 1023);
+  Joystick.setRzAxisRange(0, 1023);
 
 	// Initialize Joystick Library
 	Joystick.begin();
@@ -280,6 +419,8 @@ void setup() {
   Wire.setWireTimeout(3000, true);
 
   initiateAllDevices();
+
+  resetBenchmarking();
 }
 
 
@@ -304,12 +445,10 @@ void loop()
   }
   else
   {
+    sampleTime();
     processDevices();
-
-    delay(13);
+    doPeriodDelay();
   }
-
-
 }
 
 
