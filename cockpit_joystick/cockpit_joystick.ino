@@ -3,7 +3,7 @@
 
 
 // Create the Joystick
-Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID, JOYSTICK_TYPE_JOYSTICK, 32, 0,
+Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID, JOYSTICK_TYPE_JOYSTICK, 25*4, 0,
   true, true,   // Device  0 use x-axis and y-axis
   true, true,   // Device  1 use z-axis and Rx-axis
   true, true,   // Device  2 use Ry-axis and Rz-axis
@@ -89,7 +89,7 @@ bool benchmarkHandleDuration(unsigned long duration)
   if (benchmarkCount > 500)
   {
     // Report benchmark and then reset
-    Serial1.print("Benchmark report! avg: ");
+    Serial1.print("Benchmark duration report! avg: ");
     Serial1.print(accumulatedDuration / benchmarkCount);
     Serial1.print(", min: ");
     Serial1.print(minDuration);
@@ -253,9 +253,10 @@ bool getDeviceData(uint8_t device)
 void evaluateJoystickButtonChange(uint8_t device)
 {
 
+  uint8_t numOfButtonsPerDevice = 25;
 
   // Loop all buttons to see any changes on indivudial buttons, and send joystick command if 
-  for (uint8_t i = 0; i < 32; i++)
+  for (uint8_t i = 0; i < numOfButtonsPerDevice; i++)
   {
     bool bs = readBit(buttonState[device], i);
     if (bs != readBit(prevButtonState[device], i))
@@ -270,8 +271,8 @@ void evaluateJoystickButtonChange(uint8_t device)
       // Serial1.println("The same with as integer:");
       // Serial1.println(buttonState[device]);
 
-      Joystick.setButton(i, bs);
-      //Joystick.setButton(i + 32 * device, bs);
+      //Joystick.setButton(i, bs);
+      Joystick.setButton(i + numOfButtonsPerDevice * device, bs);
 
       // Serial1.print("Before change, the prevButtonState is: ");
       // Serial1.println(prevButtonState[device], HEX);
