@@ -2,6 +2,17 @@
 #include <Wire.h>
 
 
+
+
+// class diagram:
+// TimeManagement - handles cycle durations, single instance, non-static
+// BitManipulation - static functions for setting and reading bits
+// I2cCommunicatoin - handle all comms, scan be static?
+// DeviceHandler - handles one PIC–device, non-static, holds all info about the device like address...
+// JoystickManager - top level class owning all DeviceHandlers and run main loop. Owns the Joystick interface etc
+
+
+
 // Create the Joystick
 Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID, JOYSTICK_TYPE_JOYSTICK, 25*4, 0,
   true, true,   // Device  0 use x-axis and y-axisd:\git_dummy\cockpit_arduino\cockpit_joystick\cockpit_joystick_common.h
@@ -11,167 +22,109 @@ Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID, JOYSTICK_TYPE_JOYSTICK, 25*4, 0,
 
 uint8_t buf[10];
 
+uint8_t numOfDevices = 4;
+uint8_t i2cAddr[numOfDevices] = {0xC, 0xD, 0xE, 0xF};
+
 
 // -----------------------------------------------------------------------------------------------
 // Time manageing functions
 
-unsigned long startTime = 0;
-unsigned long cyclePeriod = 16666; // 60 Hz period
-
-// Benchmarking
-unsigned long accumulatedDuration = 0;
-unsigned long maxDuration = 0;
-unsigned long minDuration = 0;
-unsigned long benchmarkCount = 0;
-
-void sampleTime(void)
+public class TimeManagement
 {
-  startTime = micros();
-}
+  unsigned long m_startTime = 0;
+  unsigned long m_cyclePeriod = 16666; // 60 Hz period
 
-unsigned long findCycleDuration(void)
-{
-  unsigned long now = micros();
+  // Benchmarking
+  unsigned long m_accumulatedDuration = 0;
+  unsigned long m_maxDuration = 0;
+  unsigned long m_minDuration = 0;
+  unsigned long m_benchmarkCount = 0;
 
-  if (now < startTime)
-  {
-    // We have a wrap, unwrap it
-    return 4294967295 - startTime + now;
-  }
+  TimeManagement();
 
-  return now - startTime;
-}
+  void sampleTime(void);
+  unsigned long findCycleDuration(void);
+  unsigned long getDelay(void);
+  unsigned doPeriodDelay(void);
+  void resetBenchmarking(void);
 
-unsigned long getDelay(void)
-{
-  unsigned long duration = findCycleDuration();
+  // Returns true is benchmark report is to be produced
+  bool benchmarkHandleDuration(unsigned long duration);
 
-  benchmarkHandleDuration(duration);
+};
 
-  if (duration > cyclePeriod)
-  {
-    return 0;
-  }
 
-  return cyclePeriod - duration;
-}
 
-unsigned doPeriodDelay(void)
-{
-  delayMicroseconds(getDelay());
-}
-
-void resetBenchmarking(void)
-{
-  accumulatedDuration = 0;
-  maxDuration = 0;
-  minDuration = 4294967295;
-  benchmarkCount = 0;
-}
-
-// Returns true is benchmark report is to be produced
-bool benchmarkHandleDuration(unsigned long duration)
-{
-  accumulatedDuration += duration;
-
-  if (duration > maxDuration)
-  {
-    maxDuration = duration;
-  }
-
-  if (duration < minDuration)
-  {
-    minDuration = duration;
-  }
-
-  benchmarkCount++;
-
-  if (benchmarkCount > 500)
-  {
-    // Report benchmark and then reset
-    Serial1.print("Benchmark duration report! avg: ");
-    Serial1.print(accumulatedDuration / benchmarkCount);
-    Serial1.print(", min: ");
-    Serial1.print(minDuration);
-    Serial1.print(", max: ");
-    Serial1.println(maxDuration);
-
-    resetBenchmarking();
-  }
-
-}
 
 // -----------------------------------------------------------------------------------------------
 // Bit manipulation functions
 
-bool readBit(uint32_t vect, uint8_t index)
+class BitManipulation
 {
-  return (vect >> index) & 1UL;
-}
-
-uint32_t setBit(uint32_t vect, uint8_t index, bool x)
-{
-  return (vect & ~(1UL << index)) | ((uint32_t)x << index);
-}
+  static bool readBit(uint32_t vect, uint8_t index);
+  static uint32_t setBit(uint32_t vect, uint8_t index, bool x);
+};
 
 
 
 // -----------------------------------------------------------------------------------------------
 // I2C communication
 
-bool sendData(int address, int numBytes, uint8_t* buf)
+class I2cCommunication
 {
-  Wire.beginTransmission(address);
-  Wire.write(0); // Register address
-  for (int i = 0; i < numBytes; i++)
+  static bool sendData(int address, int numBytes, uint8_t* buf);
+  static void requestData(int address, int numBytes, uint8_t* buf);
+  static bool setRegisterAddress(int address, uint8_t regAddress);
+  static void sendProcessCommand(int address);
+  static bool requestCycle(int address, int numBytes, uint8_t* buf, uint8_t iteration);
+};
+
+class DeviceHandler
+{
+  uint8_t m_deviceId;
+  uint8_t m_i2cAddr;
+  uint32_t m_signalState = 0;
+  uint32_t m_prevSignalState = 0;
+  int16_t m_axisState[2] = { 0, 0};
+  int16_t m_prevAxisState[2] = { 0, 0};
+
+  DeviceHandler(uint8_t deviceId, uint8_t i2cAddr);
+
+  bool reportDeviceExists(void);
+  void initiatePreviousData(void);
+  bool getDeviceData(void);
+  void evaluateDeviceSignalChange(void);
+  void evaluateJoystickButtonChange(void);
+  void setAxis(uint8_t axisIndex, int16_t value);
+  void evaluateJoystickAxisChange();
+  void initiateDevice(void);
+  void processDevice(void);
+
+};
+
+class JoystickManager
+{
+  DeviceHandler* m_devices[4];
+
+  JoystickManager();
+
+  void initiateAllDevices(void);
+  void processDevices(void);
+{
+  for (uint8_t device = 0; device < 4; device++)
   {
-    Wire.write(buf[i]);
-  }
-  byte error = Wire.endTransmission();
-  
-  return (error == 0);
-}
-
-void requestData(int address, int numBytes, uint8_t* buf)
-{
-  int received = Wire.requestFrom(address, numBytes);
-  for (int i = 0; i < numBytes; i++)
-  {
-    buf[i] = Wire.read();
+    if (getDeviceData(device))
+    {
+      evaluateJoystickButtonChange(device);
+      evaluateJoystickAxisChange(device);
+    }
   }
 }
 
-bool setRegisterAddress(int address, uint8_t regAddress)
-{
-  uint8_t buf[1];
-  buf[0] = regAddress;
-  return sendData(address, 1, buf);
-}
 
-void sendProcessCommand(int address)
-{
-  setRegisterAddress(address, 0);
-  delayMicroseconds(250);
+};
 
-  uint8_t buf[1];
-  buf[0] = 0x10;  // Command to do general processing
-  sendData(address, 1, buf);
-  delayMicroseconds(250);
-}
 
-bool requestCycle(int address, int numBytes, uint8_t* buf, uint8_t iteration)
-{
-  if (!setRegisterAddress(address, 0))
-  {
-    // If error, we do not attempt to do more in the cycle for this device
-    return false;
-  }
-  delayMicroseconds(250);
-  requestData(address, numBytes,  buf);
-  delayMicroseconds(250);
-  sendProcessCommand(address);
-  return true;
-}
 
 
 // -----------------------------------------------------------------------------------------------
@@ -182,96 +135,6 @@ uint32_t signalState[numOfDevices] = { 0, 0, 0, 0};
 uint32_t prevSignalState[numOfDevices] = { 0, 0, 0, 0};
 int16_t axisState[numOfDevices][2] = {{ 0, 0}, { 0, 0}, { 0, 0}, { 0, 0}};
 int16_t prevAxisState[numOfDevices][2] = {{ 0, 0}, { 0, 0}, { 0, 0}, { 0, 0}};
-
-bool reportDeviceExists(uint8_t device)
-{
-  if (requestCycle(i2cAddr[device], 7, buf, 0))
-  {
-    Serial1.print("Device: ");
-    Serial1.print(device);
-    Serial1.println(" responded.");
-    return true;
-  }
-  else
-  {
-    Serial1.print("Device: ");
-    Serial1.print(device);
-    Serial1.println(" did not respond.");
-  }
-
-  return false;
-}
-
-void initiatePreviousData(uint8_t device)
-{
-  // Initial request to set the previous state variables
-  if (requestCycle(i2cAddr[device], 7, buf, 0))
-  {
-    prevSignalState[device] = signalState[device];
-    prevAxisState[device][0] = axisState[device][0];
-    prevAxisState[device][1] = axisState[device][1];
-  }
-}
-
-bool getDeviceData(uint8_t device)
-{
-  if (requestCycle(i2cAddr[device], 11, buf, 0))
-  {
-    // Serial1.print("Device: ");
-    // Serial1.print(device);
-    // Serial1.print(" responded to data request:");
-
-    signalState[device] =(uint32_t)( ((uint32_t)buf[5] << 24UL) | ((uint32_t)buf[6] << 16UL) | ((uint32_t)buf[7] << 8UL) | (uint32_t)buf[8] );
-    axisState[device][0] = ((uint32_t)buf[1] << 8UL) | ((uint32_t)buf[2]);
-    axisState[device][1] = ((uint32_t)buf[3] << 8UL) | ((uint32_t)buf[4]);
-
-    // Serial1.print(" - 0x");
-    // Serial1.print(buf[5], HEX);
-    // Serial1.print(" - 0x");
-    // Serial1.print(buf[6], HEX);
-    // Serial1.print(" - 0x");
-    // Serial1.print(buf[7], HEX);
-    // Serial1.print(" - 0x");
-    // Serial1.print(buf[8], HEX);
-
-    return true;
-
-    // Serial1.print(", ADC0: ");
-    // Serial1.print(axisState);
-
-    // Serial1.print(", ADC1: ");
-    // Serial1.print(axisState);
-
-    // Serial1.print("#");
-    // Serial1.print(i);
-    // Serial1.print(", button states: ");
-  }
-
-  return false;
-}
-
-
-// signalState is already filled.
-// We check if a signal has changed state (compare to prevSignalState). If so, we look i a table that 
-// contains a cell for each signal and shows the corresponding joystick button index.
-
-// We work with two vectors: 
-// 1. Vector with bit for each signal state.
-// 2. Vector with all joystick states
-
-uint8_t numOfSignalsPerDevice = 30;
-
-uint8_t ddiSignalToButtonTable[numOfSignalsPerDevice] = {
-  0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
-  10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
-  20, 21, 22, 23, 24, 25, 26, 27, 28, 29 };
-
-uint8_t radioPanelSignalToButtonTable[numOfSignalsPerDevice] = {
-  0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
-  10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
-  20, 21, 22, 23, 24, 25, 26, 27, 28, 29 };
-
-
 
 
 void evaluateDeviceSignalChange(uint8_t device)
@@ -398,30 +261,6 @@ void evaluateJoystickAxisChange(uint8_t device)
 
 // -----------------------------------------------------------------------------------------------
 // Functions for processing all devices in series
-
-void initiateAllDevices(void)
-{
-  for (uint8_t device = 0; device < 4; device++)
-  {
-    if (reportDeviceExists(device))
-    {
-      initiatePreviousData(device);
-    }
-  }
-}
-
-void processDevices(void)
-{
-  for (uint8_t device = 0; device < 4; device++)
-  {
-    if (getDeviceData(device))
-    {
-      evaluateJoystickButtonChange(device);
-      evaluateJoystickAxisChange(device);
-    }
-  }
-}
-
 
 
 bool testMode = false;
