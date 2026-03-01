@@ -179,6 +179,8 @@ bool requestCycle(int address, int numBytes, uint8_t* buf, uint8_t iteration)
 
 uint8_t i2cAddr[4] = {0xC, 0xD, 0xE, 0xF};
 uint32_t buttonState[4] = { 0, 0, 0, 0};
+int8_t leftRotaryEncoderState[4] = {0, 0, 0, 0};
+int8_t rightRotaryEncoderState[4] = {0, 0, 0, 0};
 uint32_t prevButtonState[4] = { 0, 0, 0, 0};
 int16_t axisState[4][2] = {{ 0, 0}, { 0, 0}, { 0, 0}, { 0, 0}};
 int16_t prevAxisState[4][2] = {{ 0, 0}, { 0, 0}, { 0, 0}, { 0, 0}};
@@ -222,6 +224,8 @@ bool getDeviceData(uint8_t device)
     // Serial1.print(" responded to data request:");
 
     buttonState[device] =(uint32_t)( ((uint32_t)buf[5] << 24UL) | ((uint32_t)buf[6] << 16UL) | ((uint32_t)buf[7] << 8UL) | (uint32_t)buf[8] );
+    leftRotaryEncoderState[device] = (int8_t)(buf[1] >> 4);
+    rightRotaryEncoderState[device] = (int8_t)(buf[3] >> 4);
     axisState[device][0] = ((uint32_t)buf[1] << 8UL) | ((uint32_t)buf[2]);
     axisState[device][1] = ((uint32_t)buf[3] << 8UL) | ((uint32_t)buf[4]);
 
@@ -253,7 +257,7 @@ bool getDeviceData(uint8_t device)
 void evaluateJoystickButtonChange(uint8_t device)
 {
 
-  uint8_t numOfButtonsPerDevice = 25;
+  uint8_t numOfButtonsPerDevice = 30;
 
   // Loop all buttons to see any changes on indivudial buttons, and send joystick command if 
   for (uint8_t i = 0; i < numOfButtonsPerDevice; i++)
@@ -283,6 +287,26 @@ void evaluateJoystickButtonChange(uint8_t device)
       // Serial1.println(prevButtonState[device], HEX);
     }
   }
+}
+
+void evaluateRotaryEncodeChange(uint8_t device)
+{
+  if (leftRotaryEncoderState[device] != 0)
+  {
+      Serial1.print("For device: ");
+      Serial1.print(device);
+      Serial1.print(", left rotary is: " );
+      Serial1.println(leftRotaryEncoderState[device], HEX);
+  }
+
+  if (rightRotaryEncoderState[device] != 0)
+  {
+      Serial1.print("For device: ");
+      Serial1.print(device);
+      Serial1.print(", right rotary is: " );
+      Serial1.println(rightRotaryEncoderState[device], HEX);
+  }
+
 }
 
 void setAxis(uint8_t device, uint8_t axisIndex, int16_t value)
@@ -358,6 +382,7 @@ void processDevices(void)
     if (getDeviceData(device))
     {
       evaluateJoystickButtonChange(device);
+      evaluateRotaryEncodeChange(device);
       evaluateJoystickAxisChange(device);
     }
   }
@@ -443,6 +468,9 @@ void loop()
     }
     Serial1.println("");
     delay(16);
+
+    delay(250);
+
   }
   else
   {
