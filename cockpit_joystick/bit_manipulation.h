@@ -1,5 +1,8 @@
 #include <Arduino.h>
 
+#ifndef BitManipulation_h
+#define BitManipulation_h
+
 
 
 // -----------------------------------------------------------------------------------------------
@@ -13,3 +16,4 @@ public:
 };
 
 
+#endif

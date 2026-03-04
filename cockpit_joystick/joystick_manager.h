@@ -2,6 +2,9 @@
 #include <Arduino.h>
 #include <Joystick.h>
 
+#ifndef JoystickManager_h
+#define JoystickManager_h
+
 
 class JoystickManager
 {
@@ -32,4 +35,4 @@ public:
   void sendJoystickButtons(void);
 };
 
-
+#endif

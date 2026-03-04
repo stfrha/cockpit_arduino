@@ -1,5 +1,8 @@
 #include <Arduino.h>
 
+#ifndef I2cComm_h
+#define I2cComm_h
+
 // -----------------------------------------------------------------------------------------------
 // I2C communication
 
@@ -14,3 +17,4 @@ public:
   static bool requestCycle(int address, int numBytes, uint8_t* buf, uint8_t iteration);
 };
 
+#endif

@@ -1,6 +1,8 @@
 #include <Arduino.h>
 #include <Joystick.h>
 
+#ifndef DeviceHandler_h
+#define DeviceHandler_h
 
 
 class DeviceHandler
@@ -42,3 +44,4 @@ public:
 
 };
 
+#endif
