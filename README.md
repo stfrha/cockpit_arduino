@@ -1,3 +1,11 @@
+
+Requires the following libraries installed in Arduino IDE:
+https://github.com/stfrha/cockpit_arduino_library
+https://github.com/MHeironimus/ArduinoJoystickLibrary
+
+
+Multiple instances of this Arduino on the same computer requires unique board definitions. Below explains how to do it:
+
 To select local cockpit board definitions: 
 - Create the following path: C:\Users\{USER}\Documents\Arduino\hardware\{Your board group name}\avr\
 - Copy all files from C:\Users\{USER}\AppData\Local\Arduino15\packages\arduino\hardware\avr to this directory

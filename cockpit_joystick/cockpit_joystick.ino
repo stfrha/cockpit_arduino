@@ -1,6 +1,5 @@
-#include "joystick_manager.h"
-#include "i2c_comm.h"
-#include "time_management.h"
+
+#include <cockpit.h>
 
 // Define some terms:
 // device signal - one bit in the buffer of one device, corresponds to one button or state of a multi state switch
