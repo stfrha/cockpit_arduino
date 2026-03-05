@@ -113,13 +113,16 @@ uint8_t signalToButtonTable[numOfDevices][numOfSignalsPerDevice] = {
   }
 };
 
+uint8_t rotaryEncoderJoystickButtons[4] = { 55, 56, 57, 58}; // Left CW, Left CCW, Right CW, Right CCW
+
 JoystickManager jMgr(
   numOfDevices,
   deviceList, 
   numOfSignalsPerDevice, 
   numOfJoystickButtons, 
   &signalToButtonTable[0][0], 
-  joystickButtonUpdates);
+  joystickButtonUpdates,
+  rotaryEncoderJoystickButtons);
 
 
 uint8_t button39State = 0; // 0 = 39 off, 1 = 39 pending, 2 = 39 On
