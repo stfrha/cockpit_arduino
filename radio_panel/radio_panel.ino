@@ -9,7 +9,7 @@ const int numOfDevices = 3;
 const int8_t deviceList[4] = {0, 1, 3, -1};
 
 const int numOfSignalsPerDevice = 30;  // the number of signals in one device, according to the bitvector from the device
-const int numOfJoystickButtons = 59;   // The total number of joystick buttons that can be set
+const int numOfJoystickButtons = 72;   // The total number of joystick buttons that can be set
 
 uint8_t joystickButtonUpdates[numOfJoystickButtons];
 
@@ -48,14 +48,14 @@ uint8_t signalToButtonTable[numOfDevices][numOfSignalsPerDevice] = {
     -1
   },
   {
-    -1,
-    -1,
-    -1,
-    -1,
-    -1,
-    -1,
-    -1,
-    -1,
+    59,
+    60,
+    61,
+    62,
+    63,
+    64,
+    65,
+    66,
     -1,
     -1,
     28,
@@ -68,11 +68,11 @@ uint8_t signalToButtonTable[numOfDevices][numOfSignalsPerDevice] = {
     33,
     34,
     35,
-    -1,
-    -1,
-    -1,
-    -1,
-    -1,
+    67,
+    68,
+    69,
+    70,
+    71,
     -1,
     -1,
     -1,
