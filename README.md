@@ -1,8 +1,7 @@
 
 Requires the following libraries installed in Arduino IDE:
 https://github.com/stfrha/cockpit_arduino_library
-https://github.com/MHeironimus/ArduinoJoystickLibrary
-
+https://github.com/stfrha/ArduinoJoystickLibrary8axis
 
 Multiple instances of this Arduino on the same computer requires unique board definitions. Below explains how to do it:
 
