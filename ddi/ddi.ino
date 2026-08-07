@@ -11,6 +11,8 @@ const int8_t deviceList[4] = {0, 1, 2, -1};
 const int numOfSignalsPerDevice = 30;  // the number of signals in one device, according to the bitvector from the device
 const int numOfJoystickButtons = 69;   // The total number of joystick buttons that can be set
 
+const bool testMode = false;
+
 uint8_t joystickButtonUpdates[numOfJoystickButtons];
 
 // Device index 0 (device 0)
@@ -113,7 +115,12 @@ uint8_t signalToButtonTable[numOfDevices][numOfSignalsPerDevice] = {
   }
 };
 
-uint8_t rotaryEncoderJoystickButtons[4] = { 70, 71, 72, 73}; // Left CW, Left CCW, Right CW, Right CCW
+int8_t rotaryEncoderJoystickButtons[numOfDevices][4] = {
+  { -1, -1, -1, -1},
+  { -1, -1, -1, -1},
+  { -1, -1, -1, -1}
+  
+}; 
 
 JoystickManager jMgr(
   numOfDevices,
@@ -122,7 +129,7 @@ JoystickManager jMgr(
   numOfJoystickButtons, 
   &signalToButtonTable[0][0], 
   joystickButtonUpdates,
-  rotaryEncoderJoystickButtons);
+  &rotaryEncoderJoystickButtons[0][0]);
 
 
 uint8_t button39State = 0; // 0 = 39 off, 1 = 39 pending, 2 = 39 On
@@ -162,9 +169,13 @@ void setup()
   jMgr.initiateAllDevices();
 
   time.resetBenchmarking();
+
+  if (testMode)
+  {
+    jMgr.initiateTestMode();
+  }
 }
 
-bool testMode = false;
 uint8_t testBuf[10];
 const uint8_t c_i2cAddr[4] = {0xC, 0xD, 0xE, 0xF};
 
@@ -177,15 +188,12 @@ void loop()
     {
       if (I2cCommunication::requestCycle(c_i2cAddr[i], 11, testBuf, 0))
       {
-        for (int i = 0; i < 11; i++)
-        {
-          Serial1.print(testBuf[i], HEX);
-          Serial1.print(" - 0x");
-        }
+        jMgr.executeTestMode(testBuf);
       }
     }
-    Serial1.println("");
-    delay(16);
+    // Serial1.println("");
+    Serial1.print('\r');
+    delay(2);
 
 //    delay(250);
 
