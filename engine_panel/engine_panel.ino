@@ -24,8 +24,8 @@ uint8_t signalToButtonTable[numOfDevices][numOfSignalsPerDevice] = {
     4,
     5,
     6,
-    11,
-    12,
+    -1,
+    -1,
     13,
     14,
     10,
@@ -46,8 +46,8 @@ uint8_t signalToButtonTable[numOfDevices][numOfSignalsPerDevice] = {
     -1,
     -1,
     -1,
-    -1,
-    -1
+    11,
+    12
   },
   {
     -1,
